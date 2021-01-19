@@ -1,54 +1,62 @@
-  
-const express = require("express")
-const mongoose = require("mongoose")
-const app = express()
-require('dotenv').config()
-const userModel = require('./models/User')
+const express = require('express');
+const mongoose = require('mongoose');
+const app = express();
+// Using dotenv module for .env file
+require("dotenv").config({ path: "./config/.env" });
+//importing the User model
+const User = require('./models/User')
 
-//DB connection
-mongoose.connect(process.env.CONNECTION, { useUnifiedTopology: true, useNewUrlParser: true })
-    .then(() => console.log("Database is connected"))
-    .catch((err) => console.log(err.message))
+//Connection to database
+mongoose.connect(process.env.MONGO_URL,{ useNewUrlParser: true, useUnifiedTopology: true },(err)=>{
+    if (err) {
+        throw err
+    }
+    console.log('database connected')
+});
 
-//middleware
+//Middleware to parse body
 app.use(express.json())
 
-// POST :  ADD A NEW USER TO THE DATABASE 
-app.post('/addUser', (req, res) => {
-    const { name, age, profession } = req.body //destruction
-    let newUser = new userModel({ name, age, profession })
+//Get the list of users
+app.get('/listOfUsers', function(req, res) {
+    User.find()
+    .then(users=>res.json(users))
+    .catch(err=>console.log(err.message))
+});
+
+//Add new user
+app.post('/newUser',(req,res)=>{
+    const {name,userName,email,phone} = req.body
+    let newUser = new User({name,userName,email,phone})
     newUser.save()
-        .then((user) => res.send(user))
-        .catch((err) => console.log(err.message))
+    .then(()=>res.json({msg : 'user added'}))
+    .catch(err=> console.log(err.message))
 })
 
-//GET :  RETURN ALL USERS 
-app.get('/allUsers', (req, res) => {
-    userModel.find()
-        .then(users => res.send(users))
+//Edit user by id
+app.put('/editUser/:id',(req,res)=>{
+    User.findByIdAndUpdate(req.params.id,{$set :{...req.body}},(err,data)=>{
+        if (err){
+            throw err
+        }
+        // we can use res.json(data) but it'd have some tiny issues
+        User.findById(req.params.id)
+        .then(user => res.json(user))
         .catch(err => console.log(err.message))
+    })})
+    
+
+// Delete user by id
+app.delete('/deleteUser/:id',(req,res)=>{
+   User.findByIdAndDelete(req.params.id)
+   .then(()=> res.json({msg : 'Contact deleted'}))
+   .catch(err => console.log(err.message))
 })
 
-// PUT : EDIT A USER BY ID 
-app.put('/updateUser/:_id', (req, res) => {
-    const { _id } = req.params
-    //const {name,age,profession} = req.body
-    userModel.findOneAndUpdate({ _id }, { $set: { ...req.body } })
-        .then(() => res.send('User Updated'))
-        .catch(err => console.log(err.message))
+//Port creation
+app.listen(4000,(err)=>{
+    if (err){
+        throw err
+    }
+    console.log('Connected to port 4000')
 })
-
-
-// DELETE : REMOVE A USER BY ID
-
-app.delete('/deleteUser/:_id', (req, res) => {
-    const { _id } = req.params
-    userModel.findOneAndDelete({ _id })
-        .then(() => res.json({ msg: 'User Deleted' }))
-        .catch(err => console.log(err.message))
-
-})
-
-//server connection
-const port = process.env.PORT || 8000
-app.listen(port, err => err ? console.log(err) : console.log(`server is running on port ${port}`))
